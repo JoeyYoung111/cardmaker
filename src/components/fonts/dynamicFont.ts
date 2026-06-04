@@ -17,7 +17,7 @@ function addFontFace(name: string, fontName: string, fontPath: string) {
 }
 
 // 若有新的文字出现，则增加新的字体
-export function contrastAddFont(texts: string, text: string, fontName = 'JinMeiMaoCaoXing', fontPath = '/fonts/JinMeiMaoCaoXing/JinMeiMaoCaoXing') {
+export function contrastAddFont(texts: string, text: string, fontName = 'JinMeiMaoCaoXing', fontPath = '/fonts/fonts/JinMeiMaoCaoXing/JinMeiMaoCaoXing') {
     const allSet = new Set(texts)
     const difSet = new Set(text.split('').filter(x => !allSet.has(x)))
     texts += [...difSet].join('')

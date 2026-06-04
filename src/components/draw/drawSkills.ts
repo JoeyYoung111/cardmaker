@@ -8,53 +8,82 @@ import { applyText } from "./textstyle"
 import * as df from "../fonts/dynamicFont"
 import { CanvasTool, tempCanvas } from "../entity/CanvasTool"
 
-// 绘制一行技能
-function drawLine(cf: Config, cvt: CanvasTool, line: string, fontSize: number, isItalic: boolean, lastLine: boolean, drawRatio = 0, y: number, xoff: number) {
+const SKILL_NAME_MIN_LEN = 2
+const SKILL_NAME_MAX_LEN = 5
+
+interface SkillNameLayout {
+    text: string
+    frameX: number
+    frameW: number
+    nameX: number
+    textX1: number
+    textW: number
+}
+
+function clampSkillName(text: string) {
+    return text.slice(0, SKILL_NAME_MAX_LEN)
+}
+
+function getSkillNameColumnLen(card: Card) {
+    let maxLen = SKILL_NAME_MIN_LEN
+    for (const skill of card.skills) {
+        maxLen = Math.max(maxLen, clampSkillName(skill.name).length)
+    }
+    return Math.min(maxLen, SKILL_NAME_MAX_LEN)
+}
+
+function getSkillNameLayout(cf: Config, skillName: string, nameColumnLen: number): SkillNameLayout {
+    const text = clampSkillName(skillName)
+    const extraWidth = Math.max(0, nameColumnLen - SKILL_NAME_MIN_LEN) * cf.skName.fontSize
+
+    return {
+        text,
+        frameX: cf.skText.x1 + cf.skFrame.xoff,
+        frameW: cf.skFrame.w + extraWidth,
+        nameX: cf.skText.x1 + cf.skName.xoff,
+        textX1: cf.skText.x1 + extraWidth,
+        textW: cf.skText.w - extraWidth,
+    }
+}
+
+function drawLine(cf: Config, cvt: CanvasTool, line: string, fontSize: number, isItalic: boolean, lastLine: boolean, drawRatio = 0, y: number, xoff: number, textX1: number, textW: number) {
     let font = fontSize + "px FangZhengZhuYuan"
     font = isItalic ? 'italic ' + font : font
-    
-    // 创建临时CanvasTool, 确保宽度对齐
-    const w1 = cvt.ctx.measureText(line).width  // 实际宽度
-    const size = new Vector(w1, fontSize * 2)    // 加高，确保文字完整显示
-    const tempCvs = tempCanvas(size, size, 1.5) // 超分辨绘制，确保字体锐利
+
+    const w1 = cvt.ctx.measureText(line).width
+    const size = new Vector(w1, fontSize * 2)
+    const tempCvs = tempCanvas(size, size, 1.5)
     tempCvs.ctx.font = font
     applyText(tempCvs.ctx, cf.skText.textStyle)
     tempCvs.ctx.fillText(line, 0, size.y / 2)
 
-    // 绘制粗体
     if (line.length >= 3 && line[2] === '技') {
-        // 确定是否需要绘制粗体
         let boldText = line.slice(0, 4)
         if (line.length >= 7 && line[6] === '技') {
             boldText = boldText + line.slice(4, 7)
         }
-        // 清空粗体区域
         const clearWidth = tempCvs.ctx.measureText(boldText).width
         tempCvs.ctx.clearRect(0, 0, clearWidth, size.y)
-        // 绘制此题
         tempCvs.ctx.font = 'bold ' + font
         tempCvs.ctx.fillText(boldText, 0, size.y / 2)
     }
 
-    // 确定宽度
-    let w2 = cf.skText.w - xoff  // 绘制宽度
+    let w2 = textW - xoff
     w2 = lastLine ? w1 : w2
     w2 = lastLine && drawRatio ? w1 * drawRatio : w2
     const d = {
-        x: cf.skText.x1 + xoff,
+        x: textX1 + xoff,
         y: y - size.y / 2,
         w: w2,
         h: size.y
     }
 
-    // 绘制
     cvt.ctx.drawImage(tempCvs.canvas, d.x, d.y, d.w, d.h)
 
     return w2 / w1
 }
 
-// 绘制并获取技能高度
-function skillHeight(cf: Config, cvt: CanvasTool, skill: Skill, isDraw: boolean = false, y: number, fontSize: number) {
+function skillHeight(cf: Config, cvt: CanvasTool, skill: Skill, layout: SkillNameLayout, isDraw: boolean = false, y: number, fontSize: number) {
     let line = ''
     let height = 0
     let numline = 0
@@ -64,24 +93,20 @@ function skillHeight(cf: Config, cvt: CanvasTool, skill: Skill, isDraw: boolean 
     applyText(cvt.ctx, cf.skText.textStyle)
     cvt.ctx.font = fontSize + "px FangZhengZhuYuan"
 
-    var xoff = 0       // 首行缩进
-    let drawRatio = 0  // 绘制单行时缩放的比例
-    let isPunctuation = false // 是否将下一行的标点符号上移
+    let xoff = 0
+    let drawRatio = 0
 
-    // 逐行绘制
     for (let i = 0; i < text.length; i++) {
         xoff = (numline === 0) ? cf.skText.indent * fontSize : 0
         line = line + text[i]
         const textWidth = cvt.ctx.measureText(line).width
-        if (textWidth + cf.skText.epsilon * fontSize >= cf.skText.w - xoff) {
-            // 确保标点符号不在第一位
+        if (textWidth + cf.skText.epsilon * fontSize >= layout.textW - xoff) {
             if (i + 1 < text.length && [',', '，', '.', '。', ';', '；', ':', '：'].indexOf(text[i + 1]) >= 0) {
                 i = i + 1
                 line = line + text[i]
-                isPunctuation = true
             }
             if (isDraw) {
-                drawRatio = drawLine(cf, cvt, line, fontSize, skill.isItalic, false, drawRatio, y + numline * yoff, xoff)
+                drawRatio = drawLine(cf, cvt, line, fontSize, skill.isItalic, false, drawRatio, y + numline * yoff, xoff, layout.textX1, layout.textW)
             }
             numline++
             line = ''
@@ -89,38 +114,40 @@ function skillHeight(cf: Config, cvt: CanvasTool, skill: Skill, isDraw: boolean 
         }
     }
 
-    // 绘制最后一行
     if (line != '') {
         height = height + yoff
         if (isDraw) {
-            drawRatio = drawLine(cf, cvt, line, fontSize, skill.isItalic, true, drawRatio, y + numline * yoff, xoff)
+            drawRatio = drawLine(cf, cvt, line, fontSize, skill.isItalic, true, drawRatio, y + numline * yoff, xoff, layout.textX1, layout.textW)
         }
     }
     return height
 }
 
-// 获取技能组高度
 function skillsHeight(cf: Config, cvt: CanvasTool, card: Card, y1: number, fontSize: number, isDraw: boolean) {
     let heights = 0
-    const skillsy: number[] = []  // 每个技能的起始y坐标
+    const skillsy: number[] = []
+    const nameLayouts: SkillNameLayout[] = []
+    const nameColumnLen = getSkillNameColumnLen(card)
+
     for (let skill of card.skills) {
+        const layout = getSkillNameLayout(cf, skill.name, nameColumnLen)
         const spacing = heights > 0 ? cf.skText.spacing * fontSize : 0
         skillsy.push(y1 + heights + spacing + fontSize / 2)
-        const height = skillHeight(cf, cvt, skill, isDraw, y1 + heights + spacing + fontSize / 2, fontSize)
+        const height = skillHeight(cf, cvt, skill, layout, isDraw, y1 + heights + spacing + fontSize / 2, fontSize)
         heights = heights + spacing + height
+        nameLayouts.push(layout)
     }
+
     return {
         height: heights,
-        skillsy: skillsy
+        skillsy: skillsy,
+        nameLayouts: nameLayouts,
+        nameColumnLen: nameColumnLen
     }
 }
 
-// 绘制缺角矩形
 function drawCornerRect(cvt: CanvasTool, rect: Rect, corner: number, isFill = false) {
-    // 确定坐标
     const line = rect.getCornerOutline(corner)
-
-    // 绘制
     cvt.ctx.beginPath()
     cvt.ctx.lineTo(line[0].x, line[0].y)
     for (let c of line.slice(1, line.length)) {
@@ -130,36 +157,33 @@ function drawCornerRect(cvt: CanvasTool, rect: Rect, corner: number, isFill = fa
     cvt.ctx.closePath()
 }
 
-// 绘制技能背景
-function drawSkillBackground(cf: Config, cvt: CanvasTool, card: Card, miscellaneous: Miscellaneous, y1: number) {
-    const alpha = transColor(cf.skBg.alpha)  // 透明度
-    const color = miscellaneous.getColor(card.power) + alpha  // 颜色
+function drawSkillBackground(cf: Config, cvt: CanvasTool, card: Card, miscellaneous: Miscellaneous, y1: number, textX1: number, textW: number) {
+    const alpha = transColor(cf.skBg.alpha)
+    const color = miscellaneous.getColor(card.power) + alpha
 
-    // 四角坐标
     const height = cf.skText.y2 - y1
-    let rect = new Rect(cf.skText.x1, y1, cf.skText.w, height)
+    let rect = new Rect(textX1, y1, textW, height)
     rect = rect.scaleWidth(cf.skBg.wScale).scaleHeight(cf.skBg.hScale)
 
-    // 绘制样式
     cvt.ctx.fillStyle = color
     cvt.ctx.lineWidth = cf.skBg.lineWidth
     cvt.ctx.strokeStyle = color
 
-    // 绘制
     drawCornerRect(cvt, rect, cf.skBg.corner, false)
     drawCornerRect(cvt, rect.scale(-cf.skBg.margin), cf.skBg.corner, true)
 }
 
-// 绘制技能名外框
-function drawSkillNameFrames(cf: Config, cvt: CanvasTool, card: Card, misellaneous: Miscellaneous, skillsy: number[]) {
-    const s = misellaneous.getSkillbox(card.power)
-    const img = misellaneous.getImg()
+function drawSkillNameFrames(cf: Config, cvt: CanvasTool, card: Card, miscellaneous: Miscellaneous, skillsy: number[], nameLayouts: SkillNameLayout[]) {
+    const s = miscellaneous.getSkillbox(card.power)
+    const img = miscellaneous.getImg()
     if (img) {
-        for (let dy of skillsy) {
+        for (let i = 0; i < skillsy.length; i++) {
+            const dy = skillsy[i]
+            const layout = nameLayouts[i]
             const d = {
-                x: cf.skText.x1 + cf.skFrame.xoff, 
-                y: dy + cf.skFrame.yoff, 
-                w: cf.skFrame.w, 
+                x: layout.frameX,
+                y: dy + cf.skFrame.yoff,
+                w: layout.frameW,
                 h: cf.skFrame.h
             }
             cvt.ctx.drawImage(img, s.x, s.y, s.w, s.h, d.x, d.y, d.w, d.h)
@@ -167,24 +191,21 @@ function drawSkillNameFrames(cf: Config, cvt: CanvasTool, card: Card, misellaneo
     }
 }
 
-// 绘制技能名
-function drawSkillNames(cf: Config, cvt: CanvasTool, card: Card, skillsy: number[]) {
-    // 设置文本样式
+function drawSkillNames(cf: Config, cvt: CanvasTool, card: Card, skillsy: number[], nameLayouts: SkillNameLayout[]) {
     const textStyle = card.power === 'shen' ? cf.skName.shenTextStyle : cf.skName.textStyle
     applyText(cvt.ctx, textStyle)
 
-    // 绘制技能名
     for (let i = 0; i < card.skills.length; i++) {
         const dy = skillsy[i]
-        let text = card.skills[i].name
+        const layout = nameLayouts[i]
+        const text = layout.text
         const fontName = 'FangZhengLiShuJianTi'
-        df.fontsTexts.fangzhengTexts = df.contrastAddFont(df.fontsTexts.fangzhengTexts, text, fontName, `/fonts/${fontName}/${fontName}`)
+        df.fontsTexts.fangzhengTexts = df.contrastAddFont(df.fontsTexts.fangzhengTexts, text, fontName, `/fonts/fonts/${fontName}/${fontName}`)
 
-        // 逐字绘制
-        for (let j = 0; j < Math.min(text.length, 2); j++) {
+        for (let j = 0; j < Math.min(text.length, SKILL_NAME_MAX_LEN); j++) {
             cvt.ctx.font = cf.skName.fontSize + "px " + fontName + "-" + text[j]
             const d = {
-                x: cf.skText.x1 + cf.skName.xoff + j * cf.skName.fontSize,
+                x: layout.nameX + j * cf.skName.fontSize,
                 y: dy + cf.skName.yoff
             }
             cvt.ctx.fillText(text[j], d.x, d.y)
@@ -192,13 +213,11 @@ function drawSkillNames(cf: Config, cvt: CanvasTool, card: Card, skillsy: number
     }
 }
 
-// 绘制技能
 export function drawSkills(cf: Config, cvt: CanvasTool, card: Card, miscellaneous: Miscellaneous) {
     const maxHeight = (cf.skText.y2 - cf.skText.maxy1) * cf.skText.maxHeight
-    let y1 = cf.skText.maxy1          // 技能组顶部y坐标
-    let fontSize = cf.skText.maxFont  // 技能组字体大小
+    let y1 = cf.skText.maxy1
+    let fontSize = cf.skText.maxFont
 
-    // 1. 确定技能组顶部y坐标和技能组字体大小
     let sh = skillsHeight(cf, cvt, card, y1, fontSize, false)
     while (fontSize >= 2 && sh.height > maxHeight) {
         fontSize--
@@ -206,17 +225,15 @@ export function drawSkills(cf: Config, cvt: CanvasTool, card: Card, miscellaneou
     }
     y1 = Math.min(cf.skText.y2 - sh.height, cf.skText.maxy1)
 
-    // 2. 绘制技能组背景
-    drawSkillBackground(cf, cvt, card, miscellaneous, y1)
+    const extraWidth = Math.max(0, sh.nameColumnLen - SKILL_NAME_MIN_LEN) * cf.skName.fontSize
+    const textX1 = cf.skText.x1 + extraWidth
+    const textW = cf.skText.w - extraWidth
 
-    // 3. 绘制技能文本
+    drawSkillBackground(cf, cvt, card, miscellaneous, y1, textX1, textW)
+
     sh = skillsHeight(cf, cvt, card, y1, fontSize, true)
-
-    // 4. 绘制技能名外框
-    drawSkillNameFrames(cf, cvt, card, miscellaneous, sh.skillsy)
-
-    // 5. 绘制技能名
-    drawSkillNames(cf, cvt, card, sh.skillsy)
+    drawSkillNameFrames(cf, cvt, card, miscellaneous, sh.skillsy, sh.nameLayouts)
+    drawSkillNames(cf, cvt, card, sh.skillsy, sh.nameLayouts)
 
     return { topy: y1 }
 }

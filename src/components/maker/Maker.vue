@@ -211,7 +211,7 @@ onMounted(() => {
     mouse = new Mouse(rcvt.value)
     illDrager = new IllDrager(rcvt.value, rcard.value, mouse)
     window.requestAnimationFrame(loop);
-    rcard.value.importIllastration('/png/刘备-六星耀帝.png', rcvt.value);
+    rcard.value.importIllastration('/png/png/刘备-六星耀帝.png', rcvt.value);
 })
 
 </script>
@@ -346,7 +346,7 @@ onMounted(() => {
                 </div>
                 <div class="row-flex-center">
                     <div class="x4">技能名</div>
-                    <input class="textInput" v-model="skill.name">
+                    <input class="textInput" v-model="skill.name" maxlength="5">
                 </div>
 
                 <hr class="cardHr">
@@ -368,7 +368,7 @@ onMounted(() => {
 
 @font-face {
     font-family: "FangZhengZhuYuan";
-    src: url("/fonts/FangZhengZhuYuan/ZhuYuan.woff") format('woff');
+    src: url("/fonts/fonts/FangZhengZhuYuan/ZhuYuan.woff") format('woff');
     font-display: swap;
 }
 

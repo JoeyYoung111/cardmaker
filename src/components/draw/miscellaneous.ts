@@ -76,4 +76,4 @@ export class Miscellaneous {
         }
     }
 }
-export const miscellaneous = new Miscellaneous('/png/miscellaneous.png')
+export const miscellaneous = new Miscellaneous('/png/png/miscellaneous.png')

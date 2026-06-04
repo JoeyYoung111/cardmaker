@@ -25,7 +25,7 @@ class OutFrame {
         for (let key in Power) {
             for (let isLord of [false, true]) {
                 const name = `old1_${Power[key]}${isLord ? '_zhu' : ''}`
-                const url = `/png/${name}.png`
+            const url = `/png/png/${name}.png`
                 this.frameName.push(name)
                 this.frame.push(new LazyImage(url))
             }
@@ -101,7 +101,7 @@ function drawTitleChar(cvt: CanvasTool, card: Card, miscellaneous: Miscellaneous
     cvt.ctx.textAlign = 'center'
     cvt.ctx.textBaseline = 'middle'
     const fontName = 'DFNewChuan'
-    df.fontsTexts.newchuanTexts = df.contrastAddFont(df.fontsTexts.newchuanTexts, char, fontName, `/fonts/${fontName}/${fontName}`)
+    df.fontsTexts.newchuanTexts = df.contrastAddFont(df.fontsTexts.newchuanTexts, char, fontName, `/fonts/fonts/${fontName}/${fontName}`)
 
     cvt.ctx.strokeStyle = "rgb(0, 0, 0)";
     cvt.ctx.lineWidth = 2.5;
@@ -179,7 +179,7 @@ function drawName(cf: Config, cvt: CanvasTool, card: Card, y2: number, y3: numbe
     }
 
     // 逐字绘制
-    const text = card.isTranslate ? translate(card.name) : card.title
+    const text = card.isTranslate ? translate(card.name) : card.name
     for (let i = 0; i < text.length; i++) {
         const y = y2 + ytop + yoff * i
         const char = text[i]
