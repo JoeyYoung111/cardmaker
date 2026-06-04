@@ -120,7 +120,7 @@ export class Fragment {
 
         // 获取字体
         df.fontsTexts.jinmeiTexts = df.contrastAddFont(df.fontsTexts.jinmeiTexts, text)
-        cvt.ctx.font = width + "px JinMeiMaoCaoXing-" + text
+        cvt.ctx.font = width + "px JinMeiMaoCaoXing"
     
         // 绘制蒙版
         cvt.ctx.rect(sx, sy, sw, sh);

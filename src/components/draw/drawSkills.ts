@@ -1,7 +1,7 @@
 import { Config } from "../config/config"
 import { Card, Skill } from "../maker/card"
-import { Vector } from '../entity/Vector'
-import { Rect } from '../entity/Rect'
+import { Vector } from "../entity/Vector"
+import { Rect } from "../entity/Rect"
 import { transColor } from "../util/transcolor"
 import { Miscellaneous } from "./miscellaneous"
 import { applyText } from "./textstyle"
@@ -10,45 +10,42 @@ import { CanvasTool, tempCanvas } from "../entity/CanvasTool"
 
 const SKILL_NAME_MIN_LEN = 2
 const SKILL_NAME_MAX_LEN = 5
+const SKILL_FONT_MIN_SIZE = 2
+const SKILL_FONT_REDUCE_LIMIT = 32
 
 interface SkillNameLayout {
     text: string
     frameX: number
     frameW: number
     nameX: number
-    textX1: number
-    textW: number
+    firstLineX: number
 }
 
 function clampSkillName(text: string) {
     return text.slice(0, SKILL_NAME_MAX_LEN)
 }
 
-function getSkillNameColumnLen(card: Card) {
-    let maxLen = SKILL_NAME_MIN_LEN
-    for (const skill of card.skills) {
-        maxLen = Math.max(maxLen, clampSkillName(skill.name).length)
-    }
-    return Math.min(maxLen, SKILL_NAME_MAX_LEN)
-}
-
-function getSkillNameLayout(cf: Config, skillName: string, nameColumnLen: number): SkillNameLayout {
+function getSkillNameLayout(cf: Config, skillName: string): SkillNameLayout {
     const text = clampSkillName(skillName)
-    const extraWidth = Math.max(0, nameColumnLen - SKILL_NAME_MIN_LEN) * cf.skName.fontSize
+    const extraWidth = Math.max(0, text.length - SKILL_NAME_MIN_LEN) * cf.skName.fontSize
+    const frameW = cf.skFrame.w + extraWidth
+    const nameW = text.length * cf.skName.fontSize
+    const gap = cf.skText.indent * cf.skName.fontSize
+    const frameX = cf.skText.x1 + cf.skFrame.xoff
+    const firstLineX = frameX + frameW + gap
 
     return {
         text,
-        frameX: cf.skText.x1 + cf.skFrame.xoff,
-        frameW: cf.skFrame.w + extraWidth,
-        nameX: cf.skText.x1 + cf.skName.xoff,
-        textX1: cf.skText.x1 + extraWidth,
-        textW: cf.skText.w - extraWidth,
+        frameX,
+        frameW,
+        nameX: frameX + (frameW - nameW) / 2,
+        firstLineX,
     }
 }
 
 function drawLine(cf: Config, cvt: CanvasTool, line: string, fontSize: number, isItalic: boolean, lastLine: boolean, drawRatio = 0, y: number, xoff: number, textX1: number, textW: number) {
     let font = fontSize + "px FangZhengZhuYuan"
-    font = isItalic ? 'italic ' + font : font
+    font = isItalic ? "italic " + font : font
 
     const w1 = cvt.ctx.measureText(line).width
     const size = new Vector(w1, fontSize * 2)
@@ -57,14 +54,14 @@ function drawLine(cf: Config, cvt: CanvasTool, line: string, fontSize: number, i
     applyText(tempCvs.ctx, cf.skText.textStyle)
     tempCvs.ctx.fillText(line, 0, size.y / 2)
 
-    if (line.length >= 3 && line[2] === '技') {
+    if (line.length >= 3 && line[2] === "技") {
         let boldText = line.slice(0, 4)
-        if (line.length >= 7 && line[6] === '技') {
+        if (line.length >= 7 && line[6] === "技") {
             boldText = boldText + line.slice(4, 7)
         }
         const clearWidth = tempCvs.ctx.measureText(boldText).width
         tempCvs.ctx.clearRect(0, 0, clearWidth, size.y)
-        tempCvs.ctx.font = 'bold ' + font
+        tempCvs.ctx.font = "bold " + font
         tempCvs.ctx.fillText(boldText, 0, size.y / 2)
     }
 
@@ -79,12 +76,11 @@ function drawLine(cf: Config, cvt: CanvasTool, line: string, fontSize: number, i
     }
 
     cvt.ctx.drawImage(tempCvs.canvas, d.x, d.y, d.w, d.h)
-
     return w2 / w1
 }
 
 function skillHeight(cf: Config, cvt: CanvasTool, skill: Skill, layout: SkillNameLayout, isDraw: boolean = false, y: number, fontSize: number) {
-    let line = ''
+    let line = ""
     let height = 0
     let numline = 0
     const text = skill.text
@@ -97,27 +93,29 @@ function skillHeight(cf: Config, cvt: CanvasTool, skill: Skill, layout: SkillNam
     let drawRatio = 0
 
     for (let i = 0; i < text.length; i++) {
-        xoff = (numline === 0) ? cf.skText.indent * fontSize : 0
+        xoff = numline === 0 ? Math.max(0, layout.firstLineX - cf.skText.x1) : 0
         line = line + text[i]
         const textWidth = cvt.ctx.measureText(line).width
-        if (textWidth + cf.skText.epsilon * fontSize >= layout.textW - xoff) {
-            if (i + 1 < text.length && [',', '，', '.', '。', ';', '；', ':', '：'].indexOf(text[i + 1]) >= 0) {
+        const lineW = cf.skText.w
+
+        if (textWidth + cf.skText.epsilon * fontSize >= lineW - xoff) {
+            if (i + 1 < text.length && [",", "，", ".", "。", ";", "；", ":", "："].indexOf(text[i + 1]) >= 0) {
                 i = i + 1
                 line = line + text[i]
             }
             if (isDraw) {
-                drawRatio = drawLine(cf, cvt, line, fontSize, skill.isItalic, false, drawRatio, y + numline * yoff, xoff, layout.textX1, layout.textW)
+                drawRatio = drawLine(cf, cvt, line, fontSize, skill.isItalic, false, drawRatio, y + numline * yoff, xoff, cf.skText.x1, lineW)
             }
             numline++
-            line = ''
+            line = ""
             height = height + yoff
         }
     }
 
-    if (line != '') {
+    if (line != "") {
         height = height + yoff
         if (isDraw) {
-            drawRatio = drawLine(cf, cvt, line, fontSize, skill.isItalic, true, drawRatio, y + numline * yoff, xoff, layout.textX1, layout.textW)
+            drawRatio = drawLine(cf, cvt, line, fontSize, skill.isItalic, true, drawRatio, y + numline * yoff, xoff, cf.skText.x1, cf.skText.w)
         }
     }
     return height
@@ -127,22 +125,21 @@ function skillsHeight(cf: Config, cvt: CanvasTool, card: Card, y1: number, fontS
     let heights = 0
     const skillsy: number[] = []
     const nameLayouts: SkillNameLayout[] = []
-    const nameColumnLen = getSkillNameColumnLen(card)
 
-    for (let skill of card.skills) {
-        const layout = getSkillNameLayout(cf, skill.name, nameColumnLen)
+    for (const skill of card.skills) {
+        const layout = getSkillNameLayout(cf, skill.name)
         const spacing = heights > 0 ? cf.skText.spacing * fontSize : 0
-        skillsy.push(y1 + heights + spacing + fontSize / 2)
-        const height = skillHeight(cf, cvt, skill, layout, isDraw, y1 + heights + spacing + fontSize / 2, fontSize)
+        const topY = y1 + heights + spacing + fontSize / 2
+        skillsy.push(topY)
+        const height = skillHeight(cf, cvt, skill, layout, isDraw, topY, fontSize)
         heights = heights + spacing + height
         nameLayouts.push(layout)
     }
 
     return {
         height: heights,
-        skillsy: skillsy,
-        nameLayouts: nameLayouts,
-        nameColumnLen: nameColumnLen
+        skillsy,
+        nameLayouts
     }
 }
 
@@ -150,20 +147,21 @@ function drawCornerRect(cvt: CanvasTool, rect: Rect, corner: number, isFill = fa
     const line = rect.getCornerOutline(corner)
     cvt.ctx.beginPath()
     cvt.ctx.lineTo(line[0].x, line[0].y)
-    for (let c of line.slice(1, line.length)) {
+    for (const c of line.slice(1, line.length)) {
         cvt.ctx.lineTo(c.x, c.y)
     }
     isFill ? cvt.ctx.fill() : cvt.ctx.stroke()
     cvt.ctx.closePath()
 }
 
-function drawSkillBackground(cf: Config, cvt: CanvasTool, card: Card, miscellaneous: Miscellaneous, y1: number, textX1: number, textW: number) {
+function drawSkillBackground(cf: Config, cvt: CanvasTool, card: Card, miscellaneous: Miscellaneous, y1: number) {
     const alpha = transColor(cf.skBg.alpha)
     const color = miscellaneous.getColor(card.power) + alpha
 
     const height = cf.skText.y2 - y1
-    let rect = new Rect(textX1, y1, textW, height)
-    rect = rect.scaleWidth(cf.skBg.wScale).scaleHeight(cf.skBg.hScale)
+    const rect = new Rect(cf.skText.x1, y1, cf.skText.w, height)
+        .scaleWidth(cf.skBg.wScale)
+        .scaleHeight(cf.skBg.hScale)
 
     cvt.ctx.fillStyle = color
     cvt.ctx.lineWidth = cf.skBg.lineWidth
@@ -192,14 +190,14 @@ function drawSkillNameFrames(cf: Config, cvt: CanvasTool, card: Card, miscellane
 }
 
 function drawSkillNames(cf: Config, cvt: CanvasTool, card: Card, skillsy: number[], nameLayouts: SkillNameLayout[]) {
-    const textStyle = card.power === 'shen' ? cf.skName.shenTextStyle : cf.skName.textStyle
+    const textStyle = card.power === "shen" ? cf.skName.shenTextStyle : cf.skName.textStyle
     applyText(cvt.ctx, textStyle)
 
     for (let i = 0; i < card.skills.length; i++) {
         const dy = skillsy[i]
         const layout = nameLayouts[i]
         const text = layout.text
-        const fontName = 'FangZhengLiShuJianTi'
+        const fontName = "FangZhengLiShuJianTi"
         df.fontsTexts.fangzhengTexts = df.contrastAddFont(df.fontsTexts.fangzhengTexts, text, fontName, `/fonts/fonts/${fontName}/${fontName}`)
 
         for (let j = 0; j < Math.min(text.length, SKILL_NAME_MAX_LEN); j++) {
@@ -219,17 +217,21 @@ export function drawSkills(cf: Config, cvt: CanvasTool, card: Card, miscellaneou
     let fontSize = cf.skText.maxFont
 
     let sh = skillsHeight(cf, cvt, card, y1, fontSize, false)
-    while (fontSize >= 2 && sh.height > maxHeight) {
+    let reduceSteps = 0
+    while (
+        reduceSteps < SKILL_FONT_REDUCE_LIMIT &&
+        fontSize > SKILL_FONT_MIN_SIZE &&
+        Number.isFinite(sh.height) &&
+        Number.isFinite(maxHeight) &&
+        sh.height > maxHeight
+    ) {
         fontSize--
         sh = skillsHeight(cf, cvt, card, y1, fontSize, false)
+        reduceSteps++
     }
     y1 = Math.min(cf.skText.y2 - sh.height, cf.skText.maxy1)
 
-    const extraWidth = Math.max(0, sh.nameColumnLen - SKILL_NAME_MIN_LEN) * cf.skName.fontSize
-    const textX1 = cf.skText.x1 + extraWidth
-    const textW = cf.skText.w - extraWidth
-
-    drawSkillBackground(cf, cvt, card, miscellaneous, y1, textX1, textW)
+    drawSkillBackground(cf, cvt, card, miscellaneous, y1)
 
     sh = skillsHeight(cf, cvt, card, y1, fontSize, true)
     drawSkillNameFrames(cf, cvt, card, miscellaneous, sh.skillsy, sh.nameLayouts)

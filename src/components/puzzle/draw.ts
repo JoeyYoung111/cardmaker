@@ -60,7 +60,7 @@ export function drawText(ctx: CanvasRenderingContext2D, fg: Fragment, width: num
 
     // 获取字体
     df.fontsTexts.jinmeiTexts = df.contrastAddFont(df.fontsTexts.jinmeiTexts, text)
-    tcvt.ctx.font = width + "px JinMeiMaoCaoXing-" + text
+    tcvt.ctx.font = width + "px JinMeiMaoCaoXing"
 
 
     // 鼠标按下时绘制完整文字
